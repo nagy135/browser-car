@@ -49,6 +49,14 @@ function App() {
         pressedKeys.boost = true;
         syncBoost();
       }
+
+      if (key === "t" && !event.repeat) {
+        map.toggleZoom();
+      }
+
+      if (key === "p" && !event.repeat) {
+        map.togglePause();
+      }
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {

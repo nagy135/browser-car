@@ -12,6 +12,11 @@ type Car = {
   speed: number;
 };
 
+type Point = {
+  x: number;
+  y: number;
+};
+
 const CAR_WIDTH = 4;
 const CAR_HEIGHT = 6;
 
@@ -20,6 +25,16 @@ const SPEED = 12;
 const TURN_SPEED = Math.PI;
 const BOOST_MULTIPLIER = 4;
 const ZOOM_VIEWPORT_RATIO = 0.4;
+const startPosition: Car = {
+  x: 5,
+  y: 85,
+  heading: 0,
+  speed: SPEED,
+};
+
+function createStartPosition(): Car {
+  return { ...startPosition };
+}
 
 export class Map {
   public width: number = 900; // pixels
@@ -31,6 +46,7 @@ export class Map {
   };
   private boosting = false;
   private zoomedToCar = false;
+  private paused = false;
   public blockers: Blocker[] = [
     {
       x: 10, // percentage
@@ -39,15 +55,17 @@ export class Map {
       height: 80, // percentage
     },
   ];
-  public car: Car = {
-    x: 5,
-    y: 85,
-    heading: 0,
-    speed: SPEED,
-  };
+  public car: Car = createStartPosition();
 
   constructor() {
     console.log("map initialized");
+    this.reset();
+  }
+
+  reset() {
+    console.log("reset");
+    this.car = createStartPosition();
+    this.lastUpdateTime = null;
   }
 
   drawBlockers(ctx: CanvasRenderingContext2D) {
@@ -111,6 +129,11 @@ export class Map {
     this.zoomedToCar = !this.zoomedToCar;
   }
 
+  togglePause() {
+    this.paused = !this.paused;
+    this.lastUpdateTime = null;
+  }
+
   move(now: number) {
     if (this.lastUpdateTime === null) {
       this.lastUpdateTime = now;
@@ -134,9 +157,94 @@ export class Map {
     this.lastUpdateTime = now;
   }
 
+  getCarCorners(): Point[] {
+    const halfWidth = CAR_WIDTH / 2;
+    const halfHeight = CAR_HEIGHT / 2;
+    const sin = Math.sin(this.car.heading);
+    const cos = Math.cos(this.car.heading);
+
+    return [
+      { x: -halfWidth, y: -halfHeight },
+      { x: halfWidth, y: -halfHeight },
+      { x: halfWidth, y: halfHeight },
+      { x: -halfWidth, y: halfHeight },
+    ].map((point) => ({
+      x: this.car.x + point.x * cos - point.y * sin,
+      y: this.car.y + point.x * sin + point.y * cos,
+    }));
+  }
+
+  getPolygonAxes(points: Point[]): Point[] {
+    return points.map((point, index) => {
+      const nextPoint = points[(index + 1) % points.length];
+      const edgeX = nextPoint.x - point.x;
+      const edgeY = nextPoint.y - point.y;
+      const length = Math.hypot(edgeX, edgeY);
+
+      return {
+        x: -edgeY / length,
+        y: edgeX / length,
+      };
+    });
+  }
+
+  projectPolygon(points: Point[], axis: Point) {
+    const projections = points.map((point) => point.x * axis.x + point.y * axis.y);
+
+    return {
+      min: Math.min(...projections),
+      max: Math.max(...projections),
+    };
+  }
+
+  polygonsOverlap(first: Point[], second: Point[]) {
+    const axes = [...this.getPolygonAxes(first), ...this.getPolygonAxes(second)];
+
+    return axes.every((axis) => {
+      const firstProjection = this.projectPolygon(first, axis);
+      const secondProjection = this.projectPolygon(second, axis);
+
+      return (
+        firstProjection.max >= secondProjection.min &&
+        secondProjection.max >= firstProjection.min
+      );
+    });
+  }
+
+  collision() {
+    const carCorners = this.getCarCorners();
+
+    if (
+      carCorners.some(
+        (corner) =>
+          corner.x < 0 || corner.x > 100 || corner.y < 0 || corner.y > 100,
+      )
+    ) {
+      return true;
+    }
+
+    return this.blockers.some((blocker) => {
+      const blockerCorners = [
+        { x: blocker.x, y: blocker.y },
+        { x: blocker.x + blocker.width, y: blocker.y },
+        { x: blocker.x + blocker.width, y: blocker.y + blocker.height },
+        { x: blocker.x, y: blocker.y + blocker.height },
+      ];
+
+      return this.polygonsOverlap(carCorners, blockerCorners);
+    });
+  }
+
   draw(ctx: CanvasRenderingContext2D, now: number) {
     ctx.clearRect(0, 0, this.width, this.height);
-    this.move(now);
+
+    if (!this.paused) {
+      this.move(now);
+
+      if (this.collision()) {
+        this.reset();
+      }
+    }
 
     ctx.save();
 
@@ -163,5 +271,15 @@ export class Map {
     this.drawCar(ctx);
 
     ctx.restore();
+
+    if (this.paused) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+      ctx.fillRect(0, 0, this.width, this.height);
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 48px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Paused", this.width / 2, this.height / 2);
+    }
   }
 }
