@@ -37,8 +37,8 @@ function createStartPosition(): Car {
 }
 
 export class Map {
-  public width: number = 900; // pixels
-  public height: number = 900; // pixels
+  public width: number = 600; // pixels
+  public height: number = 600; // pixels
   private lastUpdateTime: number | null = null;
   private steering = {
     left: false,
@@ -195,7 +195,9 @@ export class Map {
   }
 
   projectPolygon(points: Point[], axis: Point) {
-    const projections = points.map((point) => point.x * axis.x + point.y * axis.y);
+    const projections = points.map(
+      (point) => point.x * axis.x + point.y * axis.y,
+    );
 
     return {
       min: Math.min(...projections),
@@ -204,7 +206,10 @@ export class Map {
   }
 
   polygonsOverlap(first: Point[], second: Point[]) {
-    const axes = [...this.getPolygonAxes(first), ...this.getPolygonAxes(second)];
+    const axes = [
+      ...this.getPolygonAxes(first),
+      ...this.getPolygonAxes(second),
+    ];
 
     return axes.every((axis) => {
       const firstProjection = this.projectPolygon(first, axis);
@@ -297,7 +302,11 @@ export class Map {
       ctx.textBaseline = "middle";
       ctx.fillText("Click To Start", this.width / 2, this.height / 2 - 18);
       ctx.font = "24px sans-serif";
-      ctx.fillText("A/D or arrows to steer, Space to boost", this.width / 2, this.height / 2 + 28);
+      ctx.fillText(
+        "A/D or arrows to steer, Space to boost",
+        this.width / 2,
+        this.height / 2 + 28,
+      );
     }
   }
 }
