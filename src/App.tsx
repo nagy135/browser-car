@@ -32,6 +32,10 @@ function App() {
       map.setBoosting(pressedKeys.boost);
     };
 
+    const handleCanvasClick = () => {
+      map.start();
+    };
+
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
 
@@ -80,6 +84,7 @@ function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
+    canvas.addEventListener("click", handleCanvasClick);
 
     let frameId = 0;
 
@@ -94,6 +99,7 @@ function App() {
       window.cancelAnimationFrame(frameId);
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      canvas.removeEventListener("click", handleCanvasClick);
     };
   }, []);
 
@@ -110,7 +116,7 @@ function App() {
         ref={canvasRef}
         width={map.width}
         height={map.height}
-        style={{ border: "1px solid black" }}
+        style={{ border: "1px solid black", cursor: "pointer" }}
       ></canvas>
     </div>
   );

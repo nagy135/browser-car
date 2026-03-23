@@ -47,6 +47,7 @@ export class Map {
   private boosting = false;
   private zoomedToCar = false;
   private paused = false;
+  private started = false;
   public blockers: Blocker[] = [
     {
       x: 10, // percentage
@@ -131,6 +132,11 @@ export class Map {
 
   togglePause() {
     this.paused = !this.paused;
+    this.lastUpdateTime = null;
+  }
+
+  start() {
+    this.started = true;
     this.lastUpdateTime = null;
   }
 
@@ -238,7 +244,7 @@ export class Map {
   draw(ctx: CanvasRenderingContext2D, now: number) {
     ctx.clearRect(0, 0, this.width, this.height);
 
-    if (!this.paused) {
+    if (this.started && !this.paused) {
       this.move(now);
 
       if (this.collision()) {
@@ -280,6 +286,18 @@ export class Map {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("Paused", this.width / 2, this.height / 2);
+    }
+
+    if (!this.started) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+      ctx.fillRect(0, 0, this.width, this.height);
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 44px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Click To Start", this.width / 2, this.height / 2 - 18);
+      ctx.font = "24px sans-serif";
+      ctx.fillText("A/D or arrows to steer, Space to boost", this.width / 2, this.height / 2 + 28);
     }
   }
 }
