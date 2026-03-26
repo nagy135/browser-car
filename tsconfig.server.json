@@ -13,7 +13,7 @@
     "noFallthroughCasesInSwitch": true,
     "noEmit": false,
     "outDir": "./server-dist",
-    "rootDir": "."
+    "rootDir": "./server"
   },
   "include": ["server/**/*.ts"]
 }
