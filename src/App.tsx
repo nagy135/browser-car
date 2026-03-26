@@ -37,6 +37,7 @@ function App() {
       left: false,
       right: false,
       boost: false,
+      brake: false,
     };
 
     if (!canvas) {
@@ -98,6 +99,10 @@ function App() {
       });
     };
 
+    const syncBrake = () => {
+      map.setBraking(pressedKeys.brake);
+    };
+
     const handleCanvasClick = () => {
       map.start();
       socket.emit("input", { started: true });
@@ -119,6 +124,11 @@ function App() {
       if (event.code === "Space") {
         pressedKeys.boost = true;
         syncBoost();
+      }
+
+      if (event.key === "ArrowDown") {
+        pressedKeys.brake = true;
+        syncBrake();
       }
 
       if (key === "t" && !event.repeat) {
@@ -146,6 +156,11 @@ function App() {
       if (event.code === "Space") {
         pressedKeys.boost = false;
         syncBoost();
+      }
+
+      if (event.key === "ArrowDown") {
+        pressedKeys.brake = false;
+        syncBrake();
       }
     };
 

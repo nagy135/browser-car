@@ -50,6 +50,7 @@ export class Map {
     right: false,
   };
   private boosting = false;
+  private braking = false;
   private zoomedToCar = false;
   private paused = false;
   private started = false;
@@ -274,6 +275,10 @@ export class Map {
     this.boosting = boosting;
   }
 
+  setBraking(braking: boolean) {
+    this.braking = braking;
+  }
+
   toggleZoom() {
     this.zoomedToCar = !this.zoomedToCar;
   }
@@ -296,7 +301,9 @@ export class Map {
 
     const deltaTime = (now - this.lastUpdateTime) / 1000;
     const deltaFrames = deltaTime * FPS;
-    const speed = this.boosting
+    const speed = this.braking
+      ? 0
+      : this.boosting
       ? this.car.speed * BOOST_MULTIPLIER
       : this.car.speed;
     const distance = (speed / FPS) * deltaFrames;
@@ -483,7 +490,7 @@ export class Map {
       ctx.fillText("Click To Start", this.width / 2, this.height / 2 - 18);
       ctx.font = "24px sans-serif";
       ctx.fillText(
-        "A/D or arrows to steer, Space to boost",
+        "A/D or arrows to steer, Down to brake, Space to boost",
         this.width / 2,
         this.height / 2 + 28,
       );
