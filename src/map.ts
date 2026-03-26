@@ -31,9 +31,9 @@ const TURN_SPEED = Math.PI;
 const BOOST_MULTIPLIER = 4;
 const ZOOM_VIEWPORT_RATIO = 0.4;
 const startPosition: Car = {
-  x: 90,
-  y: 90,
-  heading: -Math.PI / 2,
+  x: 78,
+  y: 86.5,
+  heading: Math.PI / 2,
   speed: SPEED,
 };
 
@@ -116,9 +116,9 @@ export class Map {
   }
 
   reset() {
-    console.log("reset");
     this.car = createStartPosition();
     this.lastUpdateTime = null;
+    this.started = false;
   }
 
   drawTrack(ctx: CanvasRenderingContext2D) {
@@ -150,14 +150,14 @@ export class Map {
     });
 
     // Draw start/finish line
-    const sfX = (46 / 100) * this.width;
+    const sfX = (84 / 100) * this.width;
     const sfY = (82 / 100) * this.height;
-    const sfWidth = (8 / 100) * this.width;
-    const sfHeight = (2 / 100) * this.height;
-    const squareSize = sfHeight / 2;
-    const cols = Math.ceil(sfWidth / squareSize);
-    for (let row = 0; row < 2; row++) {
-      for (let col = 0; col < cols; col++) {
+    const sfWidth = (2.5 / 100) * this.width;
+    const sfHeight = (15 / 100) * this.height;
+    const squareSize = sfWidth / 2;
+    const rows = Math.ceil(sfHeight / squareSize);
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < 2; col++) {
         ctx.fillStyle = (row + col) % 2 === 0 ? "#fff" : "#111";
         ctx.fillRect(
           sfX + col * squareSize,
@@ -264,6 +264,11 @@ export class Map {
 
   setRemoteCar(id: string, car: CarState) {
     this.remoteCars.set(id, { ...car });
+  }
+
+  stop() {
+    this.started = false;
+    this.lastUpdateTime = null;
   }
 
   setSteering(left: boolean, right: boolean) {
@@ -480,20 +485,5 @@ export class Map {
       ctx.fillText("Paused", this.width / 2, this.height / 2);
     }
 
-    if (!this.started) {
-      ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
-      ctx.fillRect(0, 0, this.width, this.height);
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold 44px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("Click To Start", this.width / 2, this.height / 2 - 18);
-      ctx.font = "24px sans-serif";
-      ctx.fillText(
-        "A/D or arrows to steer, Down to brake, Space to boost",
-        this.width / 2,
-        this.height / 2 + 28,
-      );
-    }
   }
 }

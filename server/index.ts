@@ -36,14 +36,50 @@ const origins = (process.env.ALLOWED_ORIGIN ?? "*")
   .filter(Boolean);
 
 const players = new Map<string, PlayerState>();
+let countdownStartAt: number | null = null;
+let countdownTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function createSpawnPosition(index: number): CarState {
+  const row = index % 2;
+  const column = Math.floor(index / 2);
+
   return {
-    x: 90 - (index % 4) * 8,
-    y: 90 - Math.floor(index / 4) * 8,
-    heading: -Math.PI / 2,
+    x: 78 - column * 8,
+    y: 86.5 + row * 5,
+    heading: Math.PI / 2,
     speed: 12,
   };
+}
+
+function resetPlayersForNewMatch() {
+  [...players.values()]
+    .sort((first, second) => first.connectedAt - second.connectedAt)
+    .forEach((player, index) => {
+      player.car = createSpawnPosition(index);
+      player.input = { ...defaultInput };
+    });
+}
+
+function beginMatchCountdown() {
+  if (countdownTimeout) {
+    clearTimeout(countdownTimeout);
+  }
+
+  resetPlayersForNewMatch();
+  countdownStartAt = Date.now() + 3000;
+
+  io.emit("match:countdown", {
+    startAt: countdownStartAt,
+    players: serializePlayers(),
+  });
+
+  countdownTimeout = setTimeout(() => {
+    countdownStartAt = null;
+    countdownTimeout = null;
+    io.emit("match:go", {
+      players: serializePlayers(),
+    });
+  }, 3000);
 }
 
 function serializePlayers() {
@@ -91,6 +127,7 @@ io.on("connection", (socket) => {
   socket.emit("welcome", {
     id: socket.id,
     players: serializePlayers(),
+    countdownStartAt,
   });
 
   io.emit("players", serializePlayers());
@@ -126,6 +163,10 @@ io.on("connection", (socket) => {
       id: socket.id,
       car,
     });
+  });
+
+  socket.on("match:start", () => {
+    beginMatchCountdown();
   });
 
   socket.on("disconnect", () => {
