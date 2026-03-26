@@ -39,9 +39,7 @@ function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [connectionLabel, setConnectionLabel] = useState("connecting");
   const [playerCount, setPlayerCount] = useState(0);
-  const [centerMessage, setCenterMessage] = useState(
-    "Press S to start a new match",
-  );
+  const [centerMessage, setCenterMessage] = useState("");
   const socketUrl = import.meta.env.VITE_SOCKET_URL ?? window.location.origin;
 
   useEffect(() => {
@@ -117,7 +115,7 @@ function App() {
       clearCountdown();
       resetInputs();
       map.stop();
-      setCenterMessage("Press S to start a new match");
+      setCenterMessage("");
     };
 
     socket.on("connect", () => {
@@ -300,6 +298,7 @@ function App() {
       >
         <div>socket: {connectionLabel}</div>
         <div>players: {playerCount}</div>
+        <div>S: new match</div>
       </div>
       {centerMessage ? (
         <div
