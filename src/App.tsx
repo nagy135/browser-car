@@ -46,7 +46,6 @@ function App() {
     const canvas = canvasRef.current;
     let localPlayerId: string | null = null;
     let countdownTimer = 0;
-    let startRequestTimer = 0;
     let waitingForMatchStart = false;
     const pressedKeys = {
       left: false,
@@ -75,8 +74,6 @@ function App() {
     };
 
     const clearStartRequest = () => {
-      window.clearTimeout(startRequestTimer);
-      startRequestTimer = 0;
       waitingForMatchStart = false;
     };
 
@@ -127,36 +124,6 @@ function App() {
       map.start();
     };
 
-    const runLocalFallbackCountdown = () => {
-      clearStartRequest();
-      clearCountdown();
-      resetInputs();
-      map.stop();
-
-      const startAt = Date.now() + 3000;
-      const updateCountdown = () => {
-        const remainingSeconds = Math.max(
-          0,
-          Math.ceil((startAt - Date.now()) / 1000),
-        );
-
-        if (remainingSeconds === 0) {
-          clearCountdown();
-          setCenterMessage("GO!");
-          map.start();
-          window.setTimeout(() => {
-            setCenterMessage("");
-          }, 800);
-          return;
-        }
-
-        setCenterMessage(`New match in ${remainingSeconds}`);
-      };
-
-      updateCountdown();
-      countdownTimer = window.setInterval(updateCountdown, 100);
-    };
-
     const requestMatchStart = () => {
       if (waitingForMatchStart) {
         return;
@@ -165,10 +132,6 @@ function App() {
       waitingForMatchStart = true;
       setCenterMessage("Starting match...");
       socket.emit("match:start");
-
-      startRequestTimer = window.setTimeout(() => {
-        runLocalFallbackCountdown();
-      }, 1200);
     };
 
     socket.on("connect", () => {
@@ -311,7 +274,9 @@ function App() {
 
     const render = (now: number) => {
       map.draw(ctx, now);
-      socket.emit("pose", map.getCarState());
+      if (!waitingForMatchStart && countdownTimer === 0) {
+        socket.emit("pose", map.getCarState());
+      }
       frameId = window.requestAnimationFrame(render);
     };
 
