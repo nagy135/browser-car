@@ -12,13 +12,13 @@ type NetworkPlayer = {
 type WelcomePayload = {
   id: string;
   players: NetworkPlayer[];
-  countdownStartAt: number | null;
 };
 
 type MatchPayload = {
-  startAt: number;
   players: NetworkPlayer[];
 };
+
+const MATCH_COUNTDOWN_MS = 3000;
 
 function splitPlayers(players: NetworkPlayer[], localPlayerId: string | null) {
   const remoteCars: Record<string, CarState> = {};
@@ -46,7 +46,8 @@ function App() {
     const canvas = canvasRef.current;
     let localPlayerId: string | null = null;
     let countdownTimer = 0;
-    let waitingForMatchStart = false;
+    let matchPreparing = false;
+    let goMessageTimer = 0;
     const pressedKeys = {
       left: false,
       right: false,
@@ -73,8 +74,13 @@ function App() {
       countdownTimer = 0;
     };
 
-    const clearStartRequest = () => {
-      waitingForMatchStart = false;
+    const clearGoMessage = () => {
+      window.clearTimeout(goMessageTimer);
+      goMessageTimer = 0;
+    };
+
+    const clearMatchPreparing = () => {
+      matchPreparing = false;
     };
 
     const resetInputs = () => {
@@ -87,12 +93,24 @@ function App() {
       map.setBraking(false);
     };
 
-    const runCountdown = (startAt: number, players: NetworkPlayer[]) => {
-      clearStartRequest();
+    const finishCountdown = () => {
       clearCountdown();
+      clearMatchPreparing();
+      setCenterMessage("GO!");
+      map.start();
+      goMessageTimer = window.setTimeout(() => {
+        setCenterMessage("");
+      }, 800);
+    };
+
+    const runCountdown = (players: NetworkPlayer[]) => {
+      clearCountdown();
+      clearGoMessage();
       resetInputs();
       map.stop();
       splitPlayers(players, localPlayerId);
+      matchPreparing = true;
+      const startAt = Date.now() + MATCH_COUNTDOWN_MS;
 
       const updateCountdown = () => {
         const remainingSeconds = Math.max(
@@ -101,12 +119,7 @@ function App() {
         );
 
         if (remainingSeconds === 0) {
-          clearCountdown();
-          setCenterMessage("GO!");
-          map.start();
-          window.setTimeout(() => {
-            setCenterMessage("");
-          }, 800);
+          finishCountdown();
           return;
         }
 
@@ -118,19 +131,18 @@ function App() {
     };
 
     const beginIdleState = () => {
-      clearStartRequest();
+      clearMatchPreparing();
       clearCountdown();
+      clearGoMessage();
       setCenterMessage("");
       map.start();
     };
 
     const requestMatchStart = () => {
-      if (waitingForMatchStart) {
+      if (matchPreparing) {
         return;
       }
 
-      waitingForMatchStart = true;
-      setCenterMessage("Starting match...");
       socket.emit("match:start");
     };
 
@@ -151,11 +163,6 @@ function App() {
       setPlayerCount(payload.players.length);
       splitPlayers(payload.players, localPlayerId);
 
-      if (payload.countdownStartAt) {
-        runCountdown(payload.countdownStartAt, payload.players);
-        return;
-      }
-
       beginIdleState();
     });
 
@@ -172,20 +179,9 @@ function App() {
       map.setRemoteCar(player.id, player.car);
     });
 
-    socket.on("match:countdown", (payload: MatchPayload) => {
+    socket.on("match:prepare", (payload: MatchPayload) => {
       setPlayerCount(payload.players.length);
-      runCountdown(payload.startAt, payload.players);
-    });
-
-    socket.on("match:go", (payload: { players: NetworkPlayer[] }) => {
-      clearStartRequest();
-      clearCountdown();
-      splitPlayers(payload.players, localPlayerId);
-      map.start();
-      setCenterMessage("GO!");
-      window.setTimeout(() => {
-        setCenterMessage("");
-      }, 800);
+      runCountdown(payload.players);
     });
 
     const syncSteering = () => {
@@ -274,7 +270,7 @@ function App() {
 
     const render = (now: number) => {
       map.draw(ctx, now);
-      if (!waitingForMatchStart && countdownTimer === 0) {
+      if (!matchPreparing && countdownTimer === 0) {
         socket.emit("pose", map.getCarState());
       }
       frameId = window.requestAnimationFrame(render);
@@ -284,8 +280,9 @@ function App() {
 
     return () => {
       window.cancelAnimationFrame(frameId);
-      clearStartRequest();
+      clearMatchPreparing();
       clearCountdown();
+      clearGoMessage();
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       socket.disconnect();

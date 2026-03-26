@@ -36,8 +36,7 @@ const origins = (process.env.ALLOWED_ORIGIN ?? "*")
   .filter(Boolean);
 
 const players = new Map<string, PlayerState>();
-let countdownStartAt: number | null = null;
-let countdownTimeout: ReturnType<typeof setTimeout> | null = null;
+let matchPreparing = false;
 
 function createSpawnPosition(index: number): CarState {
   const row = index % 2;
@@ -61,24 +60,15 @@ function resetPlayersForNewMatch() {
 }
 
 function beginMatchCountdown() {
-  if (countdownTimeout) {
-    clearTimeout(countdownTimeout);
-  }
-
   resetPlayersForNewMatch();
-  countdownStartAt = Date.now() + 3000;
+  matchPreparing = true;
 
-  io.emit("match:countdown", {
-    startAt: countdownStartAt,
+  io.emit("match:prepare", {
     players: serializePlayers(),
   });
 
-  countdownTimeout = setTimeout(() => {
-    countdownStartAt = null;
-    countdownTimeout = null;
-    io.emit("match:go", {
-      players: serializePlayers(),
-    });
+  setTimeout(() => {
+    matchPreparing = false;
   }, 3000);
 }
 
@@ -127,7 +117,6 @@ io.on("connection", (socket) => {
   socket.emit("welcome", {
     id: socket.id,
     players: serializePlayers(),
-    countdownStartAt,
   });
 
   io.emit("players", serializePlayers());
@@ -157,7 +146,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    if (countdownStartAt !== null) {
+    if (matchPreparing) {
       return;
     }
 
