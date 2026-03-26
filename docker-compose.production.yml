@@ -1,16 +1,4 @@
 services:
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile.web
-      target: production
-      args:
-        VITE_SOCKET_URL: https://car-socket.infiniter.tech
-    ports:
-      - "13000:3000"
-    depends_on:
-      - server
-
   server:
     build:
       context: .
@@ -18,6 +6,6 @@ services:
       target: production
     environment:
       PORT: 3001
-      ALLOWED_ORIGIN: https://fit.infiniter.tech,https://www.fit.infiniter.tech
+      ALLOWED_ORIGIN: https://car.infiniter.tech,https://www.car.infiniter.tech
     ports:
-      - "13331:3001"
+      - "3001:3001"
