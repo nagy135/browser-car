@@ -46,6 +46,8 @@ function App() {
     const canvas = canvasRef.current;
     let localPlayerId: string | null = null;
     let countdownTimer = 0;
+    let startRequestTimer = 0;
+    let waitingForMatchStart = false;
     const pressedKeys = {
       left: false,
       right: false,
@@ -72,6 +74,12 @@ function App() {
       countdownTimer = 0;
     };
 
+    const clearStartRequest = () => {
+      window.clearTimeout(startRequestTimer);
+      startRequestTimer = 0;
+      waitingForMatchStart = false;
+    };
+
     const resetInputs = () => {
       pressedKeys.left = false;
       pressedKeys.right = false;
@@ -83,6 +91,7 @@ function App() {
     };
 
     const runCountdown = (startAt: number, players: NetworkPlayer[]) => {
+      clearStartRequest();
       clearCountdown();
       resetInputs();
       map.stop();
@@ -112,10 +121,55 @@ function App() {
     };
 
     const beginIdleState = () => {
+      clearStartRequest();
       clearCountdown();
       resetInputs();
       map.stop();
       setCenterMessage("");
+    };
+
+    const runLocalFallbackCountdown = () => {
+      clearStartRequest();
+      clearCountdown();
+      resetInputs();
+      map.stop();
+
+      const startAt = Date.now() + 3000;
+      const updateCountdown = () => {
+        const remainingSeconds = Math.max(
+          0,
+          Math.ceil((startAt - Date.now()) / 1000),
+        );
+
+        if (remainingSeconds === 0) {
+          clearCountdown();
+          setCenterMessage("GO!");
+          map.start();
+          window.setTimeout(() => {
+            setCenterMessage("");
+          }, 800);
+          return;
+        }
+
+        setCenterMessage(`New match in ${remainingSeconds}`);
+      };
+
+      updateCountdown();
+      countdownTimer = window.setInterval(updateCountdown, 100);
+    };
+
+    const requestMatchStart = () => {
+      if (waitingForMatchStart) {
+        return;
+      }
+
+      waitingForMatchStart = true;
+      setCenterMessage("Starting match...");
+      socket.emit("match:start");
+
+      startRequestTimer = window.setTimeout(() => {
+        runLocalFallbackCountdown();
+      }, 1200);
     };
 
     socket.on("connect", () => {
@@ -162,6 +216,7 @@ function App() {
     });
 
     socket.on("match:go", (payload: { players: NetworkPlayer[] }) => {
+      clearStartRequest();
       clearCountdown();
       splitPlayers(payload.players, localPlayerId);
       map.start();
@@ -194,7 +249,7 @@ function App() {
       const key = event.key.toLowerCase();
 
       if (key === "s" && !event.repeat) {
-        socket.emit("match:start");
+        requestMatchStart();
       }
 
       if (key === "a" || event.key === "ArrowLeft") {
@@ -265,6 +320,7 @@ function App() {
 
     return () => {
       window.cancelAnimationFrame(frameId);
+      clearStartRequest();
       clearCountdown();
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
