@@ -158,8 +158,9 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("match:start", () => {
+  socket.on("match:start", (ack?: (payload: { ok: true }) => void) => {
     beginMatchCountdown();
+    ack?.({ ok: true });
   });
 
   socket.on("disconnect", () => {

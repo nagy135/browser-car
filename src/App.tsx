@@ -143,7 +143,20 @@ function App() {
         return;
       }
 
-      socket.emit("match:start");
+      setCenterMessage("Starting match...");
+      socket.timeout(1500).emit(
+        "match:start",
+        (error: Error | null) => {
+          if (!error) {
+            return;
+          }
+
+          setCenterMessage("Could not start match");
+          window.setTimeout(() => {
+            setCenterMessage("");
+          }, 1200);
+        },
+      );
     };
 
     socket.on("connect", () => {
@@ -180,6 +193,11 @@ function App() {
     });
 
     socket.on("match:prepare", (payload: MatchPayload) => {
+      setPlayerCount(payload.players.length);
+      runCountdown(payload.players);
+    });
+
+    socket.on("match:countdown", (payload: MatchPayload) => {
       setPlayerCount(payload.players.length);
       runCountdown(payload.players);
     });
