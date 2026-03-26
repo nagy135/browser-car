@@ -12,6 +12,8 @@ type Car = {
   speed: number;
 };
 
+export type CarState = Car;
+
 type Point = {
   x: number;
   y: number;
@@ -29,9 +31,9 @@ const TURN_SPEED = Math.PI;
 const BOOST_MULTIPLIER = 4;
 const ZOOM_VIEWPORT_RATIO = 0.4;
 const startPosition: Car = {
-  x: 50,
+  x: 90,
   y: 90,
-  heading: 0,
+  heading: -Math.PI / 2,
   speed: SPEED,
 };
 
@@ -51,6 +53,7 @@ export class Map {
   private zoomedToCar = false;
   private paused = false;
   private started = false;
+  private remoteCars = new globalThis.Map<string, CarState>();
 
   // Track road surface segments (visual only, percentage coords)
   private trackSurface: Blocker[] = [
@@ -208,9 +211,9 @@ export class Map {
     });
   }
 
-  drawCar(ctx: CanvasRenderingContext2D) {
-    const topLeftX = this.car.x - CAR_WIDTH / 2;
-    const topLeftY = this.car.y - CAR_HEIGHT / 2;
+  drawCar(ctx: CanvasRenderingContext2D, car: CarState, bodyColor: string) {
+    const topLeftX = car.x - CAR_WIDTH / 2;
+    const topLeftY = car.y - CAR_HEIGHT / 2;
     const carX = (topLeftX / 100) * this.width;
     const carY = (topLeftY / 100) * this.height;
     const carWidth = (CAR_WIDTH / 100) * this.width;
@@ -220,9 +223,9 @@ export class Map {
 
     ctx.save();
     ctx.translate(centerX, centerY);
-    ctx.rotate(this.car.heading);
+    ctx.rotate(car.heading);
 
-    ctx.fillStyle = "#f00";
+    ctx.fillStyle = bodyColor;
 
     ctx.fillRect(-carWidth / 2, -carHeight / 2, carWidth, carHeight);
 
@@ -241,6 +244,25 @@ export class Map {
     );
 
     ctx.restore();
+  }
+
+  setCarState(car: CarState) {
+    this.car = { ...car };
+    this.lastUpdateTime = null;
+  }
+
+  getCarState(): CarState {
+    return { ...this.car };
+  }
+
+  setRemoteCars(cars: Record<string, CarState>) {
+    this.remoteCars = new globalThis.Map(
+      Object.entries(cars).map(([id, car]) => [id, { ...car }]),
+    );
+  }
+
+  setRemoteCar(id: string, car: CarState) {
+    this.remoteCars.set(id, { ...car });
   }
 
   setSteering(left: boolean, right: boolean) {
@@ -434,7 +456,10 @@ export class Map {
 
     this.drawTrack(ctx);
     this.drawBlockers(ctx);
-    this.drawCar(ctx);
+    this.remoteCars.forEach((car) => {
+      this.drawCar(ctx, car, "#111");
+    });
+    this.drawCar(ctx, this.car, "#f00");
 
     ctx.restore();
 

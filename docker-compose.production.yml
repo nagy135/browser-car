@@ -1,0 +1,21 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      target: production
+    ports:
+      - "3000:3000"
+    depends_on:
+      - server
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+      target: production
+    environment:
+      PORT: 3001
+      ALLOWED_ORIGIN: https://fit.infiniter.tech,https://www.fit.infiniter.tech
+    ports:
+      - "3001:3001"

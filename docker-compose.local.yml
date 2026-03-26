@@ -1,0 +1,33 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      target: dev
+    environment:
+      VITE_SOCKET_URL: http://localhost:3001
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - web-node-modules:/app/node_modules
+    depends_on:
+      - server
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+      target: dev
+    environment:
+      PORT: 3001
+      ALLOWED_ORIGIN: http://localhost:5173
+    ports:
+      - "3001:3001"
+    volumes:
+      - .:/app
+      - server-node-modules:/app/node_modules
+
+volumes:
+  web-node-modules:
+  server-node-modules:
