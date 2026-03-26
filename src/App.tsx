@@ -123,9 +123,8 @@ function App() {
     const beginIdleState = () => {
       clearStartRequest();
       clearCountdown();
-      resetInputs();
-      map.stop();
       setCenterMessage("");
+      map.start();
     };
 
     const runLocalFallbackCountdown = () => {

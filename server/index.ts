@@ -157,6 +157,10 @@ io.on("connection", (socket) => {
       return;
     }
 
+    if (countdownStartAt !== null) {
+      return;
+    }
+
     existingPlayer.car = car;
 
     socket.broadcast.emit("player:pose", {
