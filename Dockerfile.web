@@ -12,6 +12,8 @@ CMD ["pnpm", "dev:web"]
 
 FROM base AS build
 WORKDIR /app
+ARG VITE_SOCKET_URL=https://car-socket.infiniter.tech
+ENV VITE_SOCKET_URL=${VITE_SOCKET_URL}
 COPY . .
 RUN pnpm build:web
 
