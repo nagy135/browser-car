@@ -25,6 +25,35 @@ input {
   font: inherit;
 }
 
+.app-shell button,
+.app-shell canvas {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app-header {
+  order: 1;
+}
+
+.app-game-area {
+  order: 2;
+}
+
+.app-control-dock {
+  order: 3;
+  justify-content: center;
+}
+
+@media (min-width: 640px) {
+  .app-control-dock {
+    order: 2;
+    justify-content: flex-start;
+  }
+
+  .app-game-area {
+    order: 3;
+  }
+}
+
 canvas {
   display: block;
 }

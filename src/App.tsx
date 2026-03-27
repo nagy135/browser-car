@@ -60,6 +60,7 @@ type ControlButtonProps = {
   title: string;
   active?: boolean;
   badge?: number;
+  minWidth?: number;
   onClick?: () => void;
   onPointerDown?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onPointerUp?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
@@ -127,6 +128,7 @@ function ControlButton({
   title,
   active = false,
   badge,
+  minWidth,
   onClick,
   onPointerDown,
   onPointerUp,
@@ -158,7 +160,7 @@ function ControlButton({
       }}
       style={{
         position: "relative",
-        minWidth: 56,
+        minWidth: minWidth ?? 56,
         minHeight: 50,
         display: "flex",
         flexDirection: "column",
@@ -867,8 +869,96 @@ function App() {
     socketRef.current?.emit("map:preset", presetId);
   };
 
+  const controlDock = (
+    <div
+      className="app-control-dock"
+      style={{
+        display: "flex",
+        gap: 8,
+        flexWrap: "wrap",
+      }}
+    >
+      <ControlButton
+        label="Match"
+        title="Start a new match (S)"
+        onClick={requestMatchStart}
+      >
+        <ControlIcon>
+          <path d="M6 4v16" />
+          <path d="M6 5h10l-2.5 4L16 13H6" />
+        </ControlIcon>
+      </ControlButton>
+      <ControlButton
+        label="Chat"
+        title="Open chat (C)"
+        active={chatOpen}
+        badge={unreadCount}
+        onClick={() => {
+          if (chatOpen) {
+            closeChatPanel();
+            return;
+          }
+
+          openChatPanel();
+        }}
+      >
+        <ControlIcon>
+          <path d="M5 7.5A2.5 2.5 0 0 1 7.5 5h9A2.5 2.5 0 0 1 19 7.5v5A2.5 2.5 0 0 1 16.5 15H10l-4 4v-4H7.5A2.5 2.5 0 0 1 5 12.5z" />
+        </ControlIcon>
+      </ControlButton>
+      <ControlButton
+        label="Boost"
+        title="Hold boost (Space)"
+        active={driveState.boost}
+        minWidth={168}
+        {...boostButtonHandlers}
+      >
+        <ControlIcon>
+          <path d="M13 3 7 13h4l-1 8 7-11h-4l0-7Z" />
+        </ControlIcon>
+      </ControlButton>
+      <ControlButton
+        label="Brake"
+        title="Hold brake (ArrowDown)"
+        active={driveState.brake}
+        {...brakeButtonHandlers}
+      >
+        <ControlIcon>
+          <circle cx="12" cy="12" r="7" />
+          <path d="M8 12h8" />
+        </ControlIcon>
+      </ControlButton>
+      <ControlButton
+        label="Zoom"
+        title="Toggle zoom (T)"
+        active={zoomedToCar}
+        onClick={toggleZoom}
+      >
+        <ControlIcon>
+          <circle cx="10.5" cy="10.5" r="4.5" />
+          <path d="m15 15 4 4" />
+          <path d="M10.5 8.5v4" />
+          <path d="M8.5 10.5h4" />
+        </ControlIcon>
+      </ControlButton>
+      <ControlButton
+        label="Pause"
+        title="Toggle pause (P)"
+        active={paused}
+        onClick={togglePause}
+      >
+        <ControlIcon>
+          <path d="M9 7v10" />
+          <path d="M15 7v10" />
+          <rect x="5" y="4" width="14" height="16" rx="3" />
+        </ControlIcon>
+      </ControlButton>
+    </div>
+  );
+
   return (
     <div
+      className="app-shell"
       style={{
         minHeight: "100dvh",
         height: "100%",
@@ -881,6 +971,7 @@ function App() {
       }}
     >
       <div
+        className="app-header"
         style={{
           display: "flex",
           flexDirection: "column",
@@ -985,89 +1076,6 @@ function App() {
         <div
           style={{
             display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-          }}
-        >
-          <ControlButton
-            label="Match"
-            title="Start a new match (S)"
-            onClick={requestMatchStart}
-          >
-            <ControlIcon>
-              <path d="M6 4v16" />
-              <path d="M6 5h10l-2.5 4L16 13H6" />
-            </ControlIcon>
-          </ControlButton>
-          <ControlButton
-            label="Chat"
-            title="Open chat (C)"
-            active={chatOpen}
-            badge={unreadCount}
-            onClick={() => {
-              if (chatOpen) {
-                closeChatPanel();
-                return;
-              }
-
-              openChatPanel();
-            }}
-          >
-            <ControlIcon>
-              <path d="M5 7.5A2.5 2.5 0 0 1 7.5 5h9A2.5 2.5 0 0 1 19 7.5v5A2.5 2.5 0 0 1 16.5 15H10l-4 4v-4H7.5A2.5 2.5 0 0 1 5 12.5z" />
-            </ControlIcon>
-          </ControlButton>
-          <ControlButton
-            label="Boost"
-            title="Hold boost (Space)"
-            active={driveState.boost}
-            {...boostButtonHandlers}
-          >
-            <ControlIcon>
-              <path d="M13 3 7 13h4l-1 8 7-11h-4l0-7Z" />
-            </ControlIcon>
-          </ControlButton>
-          <ControlButton
-            label="Brake"
-            title="Hold brake (ArrowDown)"
-            active={driveState.brake}
-            {...brakeButtonHandlers}
-          >
-            <ControlIcon>
-              <circle cx="12" cy="12" r="7" />
-              <path d="M8 12h8" />
-            </ControlIcon>
-          </ControlButton>
-          <ControlButton
-            label="Zoom"
-            title="Toggle zoom (T)"
-            active={zoomedToCar}
-            onClick={toggleZoom}
-          >
-            <ControlIcon>
-              <circle cx="10.5" cy="10.5" r="4.5" />
-              <path d="m15 15 4 4" />
-              <path d="M10.5 8.5v4" />
-              <path d="M8.5 10.5h4" />
-            </ControlIcon>
-          </ControlButton>
-          <ControlButton
-            label="Pause"
-            title="Toggle pause (P)"
-            active={paused}
-            onClick={togglePause}
-          >
-            <ControlIcon>
-              <path d="M9 7v10" />
-              <path d="M15 7v10" />
-              <rect x="5" y="4" width="14" height="16" rx="3" />
-            </ControlIcon>
-          </ControlButton>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
             alignItems: "center",
             gap: 8,
             flexWrap: "wrap",
@@ -1133,7 +1141,7 @@ function App() {
           >
             <div>Tap or click the left canvas half to steer left.</div>
             <div>Tap or click the right canvas half to steer right.</div>
-            <div>Use the top buttons for match, chat, boost, brake, zoom, and pause.</div>
+            <div>Use the control buttons for match, chat, boost, brake, zoom, and pause.</div>
             <div>Keyboard still works: A/D or arrows, Space, ArrowDown, S, C, T, P.</div>
             <div>Layout scales to fullscreen mobile and smaller iframes without page scroll.</div>
           </div>
@@ -1141,6 +1149,7 @@ function App() {
       </div>
 
       <div
+        className="app-game-area"
         ref={gameAreaRef}
         style={{
           position: "relative",
@@ -1374,10 +1383,13 @@ function App() {
               background: "#1c3122",
               cursor: "pointer",
               touchAction: "none",
+              WebkitTapHighlightColor: "transparent",
             }}
           ></canvas>
         </div>
       </div>
+
+      {controlDock}
     </div>
   );
 }
