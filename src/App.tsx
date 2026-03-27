@@ -75,6 +75,7 @@ function App() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [playerName, setPlayerName] = useState(getInitialPlayerName);
   const [nameDraft, setNameDraft] = useState(getInitialPlayerName);
+  const [menuOpen, setMenuOpen] = useState(false);
   const socketUrl = import.meta.env.VITE_SOCKET_URL ?? window.location.origin;
 
   useEffect(() => {
@@ -237,19 +238,16 @@ function App() {
       }
 
       setCenterMessage("Starting match...");
-      socket.timeout(1500).emit(
-        "match:start",
-        (error: Error | null) => {
-          if (!error) {
-            return;
-          }
+      socket.timeout(1500).emit("match:start", (error: Error | null) => {
+        if (!error) {
+          return;
+        }
 
-          setCenterMessage("Could not start match");
-          window.setTimeout(() => {
-            setCenterMessage("");
-          }, 1200);
-        },
-      );
+        setCenterMessage("Could not start match");
+        window.setTimeout(() => {
+          setCenterMessage("");
+        }, 1200);
+      });
     };
 
     socket.on("connect", () => {
@@ -269,7 +267,9 @@ function App() {
       setPlayerCount(payload.players.length);
       setChatMessages(payload.chatHistory);
 
-      const localPlayer = payload.players.find((player) => player.id === payload.id);
+      const localPlayer = payload.players.find(
+        (player) => player.id === payload.id,
+      );
 
       if (localPlayer) {
         setPlayerName(localPlayer.name);
@@ -504,23 +504,60 @@ function App() {
           position: "absolute",
           top: 16,
           left: 16,
-          padding: "8px 12px",
-          background: "rgba(0, 0, 0, 0.72)",
-          color: "#fff",
-          borderRadius: 8,
-          fontFamily: "monospace",
-          fontSize: 13,
-          lineHeight: 1.4,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-start",
+          gap: 8,
         }}
+      >
+        <button
+          type="button"
+          onClick={() => setMenuOpen((isOpen) => !isOpen)}
+          style={{
+            width: 32,
+            height: 32,
+            display: "grid",
+            placeItems: "center",
+            padding: 0,
+            borderRadius: 999,
+            border: "1px solid rgba(255, 255, 255, 0.18)",
+            background: "rgba(0, 0, 0, 0.72)",
+            color: "#fff",
+            fontFamily: "monospace",
+            fontSize: 18,
+            cursor: "pointer",
+          }}
         >
-          <div>socket: {connectionLabel}</div>
-          <div>players: {playerCount}</div>
-          <div>name: {playerName || "Guest"}</div>
-          <div>S: new match</div>
-          <div>
-            C: chat{unreadCount > 0 ? ` (${unreadCount} new)` : ""}
+          ?
+        </button>
+        {menuOpen ? (
+          <div
+            style={{
+              padding: "10px 12px",
+              background: "rgba(0, 0, 0, 0.72)",
+              color: "#fff",
+              borderRadius: 8,
+              fontFamily: "monospace",
+              fontSize: 13,
+              lineHeight: 1.5,
+              minWidth: 220,
+            }}
+          >
+            <div>socket: {connectionLabel}</div>
+            <div>players: {playerCount}</div>
+            <div>name: {playerName || "Guest"}</div>
+            <div style={{ marginTop: 8, opacity: 0.8 }}>binds</div>
+            <div>`S`: new match</div>
+            <div>`C`: chat{unreadCount > 0 ? ` (${unreadCount} new)` : ""}</div>
+            <div>`Esc`: close chat</div>
+            <div>`A/D` or arrows: steer</div>
+            <div>`Space`: boost</div>
+            <div>`ArrowDown`: brake</div>
+            <div>`T`: toggle zoom</div>
+            <div>`P`: pause</div>
           </div>
-        </div>
+        ) : null}
+      </div>
       {centerMessage ? (
         <div
           style={{
@@ -574,14 +611,13 @@ function App() {
             <span>socket chat</span>
             <span>C / Esc to close</span>
           </div>
-          <form
-            onSubmit={handleNameSubmit}
-            style={{ display: "flex", gap: 8 }}
-          >
+          <form onSubmit={handleNameSubmit} style={{ display: "flex", gap: 8 }}>
             <input
               ref={nameInputRef}
               value={nameDraft}
-              onChange={(event) => setNameDraft(event.target.value.slice(0, 24))}
+              onChange={(event) =>
+                setNameDraft(event.target.value.slice(0, 24))
+              }
               placeholder="Set your name"
               style={{
                 flex: 1,
@@ -643,19 +679,16 @@ function App() {
                 </div>
               ))
             ) : (
-              <div style={{ fontSize: 13, opacity: 0.7 }}>
-                No messages yet.
-              </div>
+              <div style={{ fontSize: 13, opacity: 0.7 }}>No messages yet.</div>
             )}
           </div>
-          <form
-            onSubmit={handleChatSubmit}
-            style={{ display: "flex", gap: 8 }}
-          >
+          <form onSubmit={handleChatSubmit} style={{ display: "flex", gap: 8 }}>
             <input
               ref={chatInputRef}
               value={chatDraft}
-              onChange={(event) => setChatDraft(event.target.value.slice(0, 240))}
+              onChange={(event) =>
+                setChatDraft(event.target.value.slice(0, 240))
+              }
               placeholder="Type a message and press Enter"
               style={{
                 flex: 1,
