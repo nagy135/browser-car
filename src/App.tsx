@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { io } from "socket.io-client";
 import { Map, type CarState } from "./map";
 
@@ -12,10 +12,18 @@ type NetworkPlayer = {
 type WelcomePayload = {
   id: string;
   players: NetworkPlayer[];
+  chatHistory: ChatMessage[];
 };
 
 type MatchPayload = {
   players: NetworkPlayer[];
+};
+
+type ChatMessage = {
+  id: string;
+  playerId: string;
+  text: string;
+  sentAt: number;
 };
 
 const MATCH_COUNTDOWN_MS = 3000;
@@ -37,10 +45,38 @@ function splitPlayers(players: NetworkPlayer[], localPlayerId: string | null) {
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const socketRef = useRef<ReturnType<typeof io> | null>(null);
+  const chatInputRef = useRef<HTMLInputElement | null>(null);
+  const chatMessagesRef = useRef<HTMLDivElement | null>(null);
+  const chatOpenRef = useRef(false);
   const [connectionLabel, setConnectionLabel] = useState("connecting");
   const [playerCount, setPlayerCount] = useState(0);
   const [centerMessage, setCenterMessage] = useState("");
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatDraft, setChatDraft] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const socketUrl = import.meta.env.VITE_SOCKET_URL ?? window.location.origin;
+
+  useEffect(() => {
+    chatOpenRef.current = chatOpen;
+
+    if (chatOpen) {
+      window.setTimeout(() => {
+        chatInputRef.current?.focus();
+      }, 0);
+    }
+  }, [chatOpen]);
+
+  useEffect(() => {
+    const container = chatMessagesRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    container.scrollTop = container.scrollHeight;
+  }, [chatMessages, chatOpen]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -68,6 +104,8 @@ function App() {
     const socket = io(socketUrl, {
       transports: ["websocket", "polling"],
     });
+
+    socketRef.current = socket;
 
     const clearCountdown = () => {
       window.clearInterval(countdownTimer);
@@ -174,9 +212,18 @@ function App() {
       localPlayerId = payload.id;
       setConnectionLabel(`connected as ${payload.id.slice(0, 6)}`);
       setPlayerCount(payload.players.length);
+      setChatMessages(payload.chatHistory);
       splitPlayers(payload.players, localPlayerId);
 
       beginIdleState();
+    });
+
+    socket.on("chat:message", (message: ChatMessage) => {
+      setChatMessages((currentMessages) => [...currentMessages, message]);
+
+      if (!chatOpenRef.current && message.playerId !== localPlayerId) {
+        setUnreadCount((count) => count + 1);
+      }
     });
 
     socket.on("players", (players: NetworkPlayer[]) => {
@@ -223,6 +270,36 @@ function App() {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
+      const target = event.target as HTMLElement | null;
+      const isTypingTarget =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        Boolean(target?.isContentEditable);
+
+      if (key === "c" && !event.repeat && !isTypingTarget) {
+        event.preventDefault();
+        setChatOpen((isOpen) => {
+          const nextOpen = !isOpen;
+
+          if (nextOpen) {
+            resetInputs();
+            setUnreadCount(0);
+          }
+
+          return nextOpen;
+        });
+        return;
+      }
+
+      if (key === "escape" && chatOpenRef.current) {
+        event.preventDefault();
+        setChatOpen(false);
+        return;
+      }
+
+      if (isTypingTarget || chatOpenRef.current) {
+        return;
+      }
 
       if (key === "s" && !event.repeat) {
         requestMatchStart();
@@ -304,8 +381,22 @@ function App() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       socket.disconnect();
+      socketRef.current = null;
     };
   }, [socketUrl]);
+
+  const handleChatSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const normalizedDraft = chatDraft.trim();
+
+    if (!normalizedDraft) {
+      return;
+    }
+
+    socketRef.current?.emit("chat:message", normalizedDraft);
+    setChatDraft("");
+  };
 
   return (
     <div
@@ -330,11 +421,14 @@ function App() {
           fontSize: 13,
           lineHeight: 1.4,
         }}
-      >
-        <div>socket: {connectionLabel}</div>
-        <div>players: {playerCount}</div>
-        <div>S: new match</div>
-      </div>
+        >
+          <div>socket: {connectionLabel}</div>
+          <div>players: {playerCount}</div>
+          <div>S: new match</div>
+          <div>
+            C: chat{unreadCount > 0 ? ` (${unreadCount} new)` : ""}
+          </div>
+        </div>
       {centerMessage ? (
         <div
           style={{
@@ -354,6 +448,114 @@ function App() {
           }}
         >
           {centerMessage}
+        </div>
+      ) : null}
+      {chatOpen ? (
+        <div
+          style={{
+            position: "absolute",
+            right: 16,
+            bottom: 16,
+            width: "min(360px, calc(100vw - 32px))",
+            maxHeight: "min(320px, calc(100vh - 32px))",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            padding: 14,
+            background: "rgba(0, 0, 0, 0.78)",
+            color: "#fff",
+            borderRadius: 12,
+            border: "1px solid rgba(255, 255, 255, 0.14)",
+            fontFamily: "monospace",
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              fontSize: 13,
+              opacity: 0.9,
+            }}
+          >
+            <span>socket chat</span>
+            <span>C / Esc to close</span>
+          </div>
+          <div
+            ref={chatMessagesRef}
+            style={{
+              minHeight: 0,
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              paddingRight: 4,
+            }}
+          >
+            {chatMessages.length > 0 ? (
+              chatMessages.map((message) => (
+                <div
+                  key={message.id}
+                  style={{
+                    padding: "8px 10px",
+                    background: "rgba(255, 255, 255, 0.08)",
+                    borderRadius: 8,
+                    fontSize: 13,
+                    lineHeight: 1.45,
+                    wordBreak: "break-word",
+                  }}
+                >
+                  <div style={{ opacity: 0.7, marginBottom: 2 }}>
+                    {message.playerId.slice(0, 6)}
+                  </div>
+                  <div>{message.text}</div>
+                </div>
+              ))
+            ) : (
+              <div style={{ fontSize: 13, opacity: 0.7 }}>
+                No messages yet.
+              </div>
+            )}
+          </div>
+          <form
+            onSubmit={handleChatSubmit}
+            style={{ display: "flex", gap: 8 }}
+          >
+            <input
+              ref={chatInputRef}
+              value={chatDraft}
+              onChange={(event) => setChatDraft(event.target.value.slice(0, 240))}
+              placeholder="Type a message and press Enter"
+              style={{
+                flex: 1,
+                minWidth: 0,
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: "1px solid rgba(255, 255, 255, 0.16)",
+                background: "rgba(255, 255, 255, 0.08)",
+                color: "#fff",
+                fontFamily: "inherit",
+                fontSize: 13,
+                outline: "none",
+              }}
+            />
+            <button
+              type="submit"
+              style={{
+                padding: "10px 14px",
+                borderRadius: 8,
+                border: "1px solid rgba(255, 255, 255, 0.18)",
+                background: "rgba(255, 255, 255, 0.12)",
+                color: "#fff",
+                fontFamily: "inherit",
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              Send
+            </button>
+          </form>
         </div>
       ) : null}
       <canvas

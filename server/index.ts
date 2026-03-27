@@ -22,6 +22,13 @@ type PlayerState = {
   car: CarState;
 };
 
+type ChatMessage = {
+  id: string;
+  playerId: string;
+  text: string;
+  sentAt: number;
+};
+
 const defaultInput: ClientInput = {
   left: false,
   right: false,
@@ -36,7 +43,9 @@ const origins = (process.env.ALLOWED_ORIGIN ?? "*")
   .filter(Boolean);
 
 const players = new Map<string, PlayerState>();
+const chatHistory: ChatMessage[] = [];
 let matchPreparing = false;
+let nextChatMessageId = 1;
 
 function createSpawnPosition(index: number): CarState {
   const row = index % 2;
@@ -81,6 +90,24 @@ function serializePlayers() {
   }));
 }
 
+function createChatMessage(playerId: string, text: string): ChatMessage {
+  const message: ChatMessage = {
+    id: `m${nextChatMessageId}`,
+    playerId,
+    text,
+    sentAt: Date.now(),
+  };
+
+  nextChatMessageId += 1;
+  chatHistory.push(message);
+
+  if (chatHistory.length > 30) {
+    chatHistory.shift();
+  }
+
+  return message;
+}
+
 const httpServer = createServer((request, response) => {
   if (request.url === "/health") {
     response.writeHead(200, { "Content-Type": "application/json" });
@@ -117,6 +144,7 @@ io.on("connection", (socket) => {
   socket.emit("welcome", {
     id: socket.id,
     players: serializePlayers(),
+    chatHistory,
   });
 
   io.emit("players", serializePlayers());
@@ -161,6 +189,17 @@ io.on("connection", (socket) => {
   socket.on("match:start", (ack?: (payload: { ok: true }) => void) => {
     beginMatchCountdown();
     ack?.({ ok: true });
+  });
+
+  socket.on("chat:message", (text: string) => {
+    const normalizedText = text.trim().slice(0, 240);
+
+    if (!normalizedText) {
+      return;
+    }
+
+    const message = createChatMessage(socket.id, normalizedText);
+    io.emit("chat:message", message);
   });
 
   socket.on("disconnect", () => {
