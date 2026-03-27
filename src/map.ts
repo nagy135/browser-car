@@ -14,6 +14,11 @@ type Car = {
 
 export type CarState = Car;
 
+export type PlayerView = {
+  car: CarState;
+  name: string;
+};
+
 type Point = {
   x: number;
   y: number;
@@ -54,7 +59,8 @@ export class Map {
   private zoomedToCar = false;
   private paused = false;
   private started = false;
-  private remoteCars = new globalThis.Map<string, CarState>();
+  private remoteCars = new globalThis.Map<string, PlayerView>();
+  private localPlayerName = "You";
 
   // Track road surface segments (visual only, percentage coords)
   private trackSurface: Blocker[] = [
@@ -247,6 +253,23 @@ export class Map {
     ctx.restore();
   }
 
+  drawCarLabel(ctx: CanvasRenderingContext2D, car: CarState, name: string) {
+    const labelX = (car.x / 100) * this.width;
+    const labelY = ((car.y - CAR_HEIGHT / 2 - 2.4) / 100) * this.height;
+
+    ctx.save();
+    ctx.font = "bold 13px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+
+    const textWidth = ctx.measureText(name).width;
+    ctx.fillStyle = "rgba(0, 0, 0, 0.72)";
+    ctx.fillRect(labelX - textWidth / 2 - 6, labelY - 17, textWidth + 12, 18);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(name, labelX, labelY - 3);
+    ctx.restore();
+  }
+
   setCarState(car: CarState) {
     this.car = { ...car };
     this.lastUpdateTime = null;
@@ -256,14 +279,27 @@ export class Map {
     return { ...this.car };
   }
 
-  setRemoteCars(cars: Record<string, CarState>) {
+  setLocalPlayerName(name: string) {
+    this.localPlayerName = name;
+  }
+
+  setRemoteCars(cars: Record<string, PlayerView>) {
     this.remoteCars = new globalThis.Map(
-      Object.entries(cars).map(([id, car]) => [id, { ...car }]),
+      Object.entries(cars).map(([id, player]) => [
+        id,
+        {
+          car: { ...player.car },
+          name: player.name,
+        },
+      ]),
     );
   }
 
-  setRemoteCar(id: string, car: CarState) {
-    this.remoteCars.set(id, { ...car });
+  setRemoteCar(id: string, player: PlayerView) {
+    this.remoteCars.set(id, {
+      car: { ...player.car },
+      name: player.name,
+    });
   }
 
   stop() {
@@ -468,10 +504,12 @@ export class Map {
 
     this.drawTrack(ctx);
     this.drawBlockers(ctx);
-    this.remoteCars.forEach((car) => {
-      this.drawCar(ctx, car, "#111");
+    this.remoteCars.forEach((player) => {
+      this.drawCar(ctx, player.car, "#111");
+      this.drawCarLabel(ctx, player.car, player.name);
     });
     this.drawCar(ctx, this.car, "#f00");
+    this.drawCarLabel(ctx, this.car, this.localPlayerName);
 
     ctx.restore();
 

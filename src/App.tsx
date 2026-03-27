@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { io } from "socket.io-client";
-import { Map, type CarState } from "./map";
+import { Map, type CarState, type PlayerView } from "./map";
 
 const map = new Map();
+const PLAYER_NAME_STORAGE_KEY = "browser-car-player-name";
 
 type NetworkPlayer = {
   id: string;
+  name: string;
   car: CarState;
 };
 
@@ -22,6 +24,7 @@ type MatchPayload = {
 type ChatMessage = {
   id: string;
   playerId: string;
+  playerName: string;
   text: string;
   sentAt: number;
 };
@@ -29,26 +32,40 @@ type ChatMessage = {
 const MATCH_COUNTDOWN_MS = 3000;
 
 function splitPlayers(players: NetworkPlayer[], localPlayerId: string | null) {
-  const remoteCars: Record<string, CarState> = {};
+  const remoteCars: Record<string, PlayerView> = {};
 
   players.forEach((player) => {
     if (player.id === localPlayerId) {
       map.setCarState(player.car);
+      map.setLocalPlayerName(player.name);
       return;
     }
 
-    remoteCars[player.id] = player.car;
+    remoteCars[player.id] = {
+      car: player.car,
+      name: player.name,
+    };
   });
 
   map.setRemoteCars(remoteCars);
+}
+
+function getInitialPlayerName() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return window.localStorage.getItem(PLAYER_NAME_STORAGE_KEY) ?? "";
 }
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
   const chatInputRef = useRef<HTMLInputElement | null>(null);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
   const chatMessagesRef = useRef<HTMLDivElement | null>(null);
   const chatOpenRef = useRef(false);
+  const wasChatOpenRef = useRef(false);
   const [connectionLabel, setConnectionLabel] = useState("connecting");
   const [playerCount, setPlayerCount] = useState(0);
   const [centerMessage, setCenterMessage] = useState("");
@@ -56,17 +73,55 @@ function App() {
   const [chatDraft, setChatDraft] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [playerName, setPlayerName] = useState(getInitialPlayerName);
+  const [nameDraft, setNameDraft] = useState(getInitialPlayerName);
   const socketUrl = import.meta.env.VITE_SOCKET_URL ?? window.location.origin;
 
   useEffect(() => {
     chatOpenRef.current = chatOpen;
 
-    if (chatOpen) {
+    if (chatOpen && !wasChatOpenRef.current) {
       window.setTimeout(() => {
-        chatInputRef.current?.focus();
+        if (nameDraft.trim()) {
+          chatInputRef.current?.focus();
+          return;
+        }
+
+        nameInputRef.current?.focus();
       }, 0);
     }
-  }, [chatOpen]);
+
+    wasChatOpenRef.current = chatOpen;
+  }, [chatOpen, nameDraft]);
+
+  useEffect(() => {
+    map.setLocalPlayerName(playerName || "You");
+  }, [playerName]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const normalizedName = playerName.trim();
+
+    if (normalizedName) {
+      window.localStorage.setItem(PLAYER_NAME_STORAGE_KEY, normalizedName);
+      return;
+    }
+
+    window.localStorage.removeItem(PLAYER_NAME_STORAGE_KEY);
+  }, [playerName]);
+
+  useEffect(() => {
+    const socket = socketRef.current;
+
+    if (!socket?.connected || !playerName.trim()) {
+      return;
+    }
+
+    socket.emit("player:name", playerName);
+  }, [playerName]);
 
   useEffect(() => {
     const container = chatMessagesRef.current;
@@ -213,6 +268,14 @@ function App() {
       setConnectionLabel(`connected as ${payload.id.slice(0, 6)}`);
       setPlayerCount(payload.players.length);
       setChatMessages(payload.chatHistory);
+
+      const localPlayer = payload.players.find((player) => player.id === payload.id);
+
+      if (localPlayer) {
+        setPlayerName(localPlayer.name);
+        setNameDraft(localPlayer.name);
+      }
+
       splitPlayers(payload.players, localPlayerId);
 
       beginIdleState();
@@ -228,6 +291,14 @@ function App() {
 
     socket.on("players", (players: NetworkPlayer[]) => {
       setPlayerCount(players.length);
+
+      const localPlayer = players.find((player) => player.id === localPlayerId);
+
+      if (localPlayer) {
+        setPlayerName(localPlayer.name);
+        setNameDraft(localPlayer.name);
+      }
+
       splitPlayers(players, localPlayerId);
     });
 
@@ -236,7 +307,10 @@ function App() {
         return;
       }
 
-      map.setRemoteCar(player.id, player.car);
+      map.setRemoteCar(player.id, {
+        car: player.car,
+        name: player.name,
+      });
     });
 
     socket.on("match:prepare", (payload: MatchPayload) => {
@@ -398,6 +472,23 @@ function App() {
     setChatDraft("");
   };
 
+  const handleNameSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const normalizedName = nameDraft.trim().replace(/\s+/g, " ").slice(0, 24);
+
+    if (!normalizedName) {
+      nameInputRef.current?.focus();
+      return;
+    }
+
+    setPlayerName(normalizedName);
+    setNameDraft(normalizedName);
+    map.setLocalPlayerName(normalizedName);
+    socketRef.current?.emit("player:name", normalizedName);
+    chatInputRef.current?.focus();
+  };
+
   return (
     <div
       style={{
@@ -424,6 +515,7 @@ function App() {
         >
           <div>socket: {connectionLabel}</div>
           <div>players: {playerCount}</div>
+          <div>name: {playerName || "Guest"}</div>
           <div>S: new match</div>
           <div>
             C: chat{unreadCount > 0 ? ` (${unreadCount} new)` : ""}
@@ -482,6 +574,44 @@ function App() {
             <span>socket chat</span>
             <span>C / Esc to close</span>
           </div>
+          <form
+            onSubmit={handleNameSubmit}
+            style={{ display: "flex", gap: 8 }}
+          >
+            <input
+              ref={nameInputRef}
+              value={nameDraft}
+              onChange={(event) => setNameDraft(event.target.value.slice(0, 24))}
+              placeholder="Set your name"
+              style={{
+                flex: 1,
+                minWidth: 0,
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: "1px solid rgba(255, 255, 255, 0.16)",
+                background: "rgba(255, 255, 255, 0.08)",
+                color: "#fff",
+                fontFamily: "inherit",
+                fontSize: 13,
+                outline: "none",
+              }}
+            />
+            <button
+              type="submit"
+              style={{
+                padding: "10px 14px",
+                borderRadius: 8,
+                border: "1px solid rgba(255, 255, 255, 0.18)",
+                background: "rgba(255, 255, 255, 0.12)",
+                color: "#fff",
+                fontFamily: "inherit",
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              Save
+            </button>
+          </form>
           <div
             ref={chatMessagesRef}
             style={{
@@ -507,7 +637,7 @@ function App() {
                   }}
                 >
                   <div style={{ opacity: 0.7, marginBottom: 2 }}>
-                    {message.playerId.slice(0, 6)}
+                    {message.playerName}
                   </div>
                   <div>{message.text}</div>
                 </div>

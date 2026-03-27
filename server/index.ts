@@ -17,6 +17,7 @@ type CarState = {
 
 type PlayerState = {
   id: string;
+  name: string;
   connectedAt: number;
   input: ClientInput;
   car: CarState;
@@ -25,6 +26,7 @@ type PlayerState = {
 type ChatMessage = {
   id: string;
   playerId: string;
+  playerName: string;
   text: string;
   sentAt: number;
 };
@@ -82,18 +84,30 @@ function beginMatchCountdown() {
 }
 
 function serializePlayers() {
-  return [...players.values()].map(({ id, connectedAt, input, car }) => ({
+  return [...players.values()].map(({ id, name, connectedAt, input, car }) => ({
     id,
+    name,
     connectedAt,
     input,
     car,
   }));
 }
 
-function createChatMessage(playerId: string, text: string): ChatMessage {
+function sanitizePlayerName(name: string) {
+  const normalizedName = name.trim().replace(/\s+/g, " ").slice(0, 24);
+
+  return normalizedName || null;
+}
+
+function createDefaultName(playerId: string) {
+  return `Guest-${playerId.slice(0, 4)}`;
+}
+
+function createChatMessage(playerId: string, playerName: string, text: string): ChatMessage {
   const message: ChatMessage = {
     id: `m${nextChatMessageId}`,
     playerId,
+    playerName,
     text,
     sentAt: Date.now(),
   };
@@ -134,6 +148,7 @@ const io = new Server(httpServer, {
 io.on("connection", (socket) => {
   const player: PlayerState = {
     id: socket.id,
+    name: createDefaultName(socket.id),
     connectedAt: Date.now(),
     input: { ...defaultInput },
     car: createSpawnPosition(players.size),
@@ -182,6 +197,7 @@ io.on("connection", (socket) => {
 
     socket.broadcast.emit("player:pose", {
       id: socket.id,
+      name: existingPlayer.name,
       car,
     });
   });
@@ -191,14 +207,30 @@ io.on("connection", (socket) => {
     ack?.({ ok: true });
   });
 
-  socket.on("chat:message", (text: string) => {
-    const normalizedText = text.trim().slice(0, 240);
+  socket.on("player:name", (name: string) => {
+    const existingPlayer = players.get(socket.id);
 
-    if (!normalizedText) {
+    if (!existingPlayer) {
       return;
     }
 
-    const message = createChatMessage(socket.id, normalizedText);
+    existingPlayer.name = sanitizePlayerName(name) ?? createDefaultName(socket.id);
+    io.emit("players", serializePlayers());
+  });
+
+  socket.on("chat:message", (text: string) => {
+    const existingPlayer = players.get(socket.id);
+    const normalizedText = text.trim().slice(0, 240);
+
+    if (!existingPlayer || !normalizedText) {
+      return;
+    }
+
+    const message = createChatMessage(
+      socket.id,
+      existingPlayer.name,
+      normalizedText,
+    );
     io.emit("chat:message", message);
   });
 
