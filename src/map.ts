@@ -24,11 +24,23 @@ type Point = {
   y: number;
 };
 
+type Arrow = {
+  x: number;
+  y: number;
+  angle: number;
+};
+
+type TrackPreset = {
+  trackSurface: Blocker[];
+  blockers: Blocker[];
+  arrows: Arrow[];
+};
+
 const CAR_WIDTH = 4;
 const CAR_HEIGHT = 6;
 const CAR_COLLISION_SCALE = 0.8;
-const COLLISION_BOUNCE_DISTANCE = 8;
-const COLLISION_BOUNCE_STEPS = 8;
+const COLLISION_BOUNCE_DISTANCE = 4;
+const COLLISION_BOUNCE_STEPS = 4;
 
 const FPS = 60;
 const SPEED = 12;
@@ -46,6 +58,276 @@ function createStartPosition(): Car {
   return { ...startPosition };
 }
 
+// Outer loop arrows shared by all tracks (counter-clockwise: →↑←↓)
+const OUTER_ARROWS: Arrow[] = [
+  // Bottom straight → right
+  { x: 30, y: 89.5, angle: Math.PI / 2 },
+  { x: 55, y: 89.5, angle: Math.PI / 2 },
+  // Right side ↑ up
+  { x: 89.5, y: 60, angle: 0 },
+  { x: 89.5, y: 30, angle: 0 },
+  // Top straight ← left
+  { x: 60, y: 10.5, angle: -Math.PI / 2 },
+  { x: 35, y: 10.5, angle: -Math.PI / 2 },
+  // Left side ↓ down
+  { x: 10.5, y: 40, angle: Math.PI },
+  { x: 10.5, y: 65, angle: Math.PI },
+];
+
+const TRACK_PRESETS: TrackPreset[] = [
+  {
+    trackSurface: [
+      { x: 5, y: 82, width: 90, height: 15 },
+      { x: 82, y: 5, width: 15, height: 77 },
+      { x: 5, y: 3, width: 29, height: 15 },
+      { x: 18, y: 18, width: 64, height: 14 },
+      { x: 62, y: 3, width: 20, height: 15 },
+      { x: 36, y: 12, width: 28, height: 12 },
+      { x: 18, y: 18, width: 16, height: 18 },
+      { x: 66, y: 18, width: 16, height: 18 },
+      { x: 44, y: 24, width: 12, height: 20 },
+      { x: 3, y: 18, width: 15, height: 64 },
+      { x: 82, y: 82, width: 15, height: 15 },
+      { x: 82, y: 3, width: 15, height: 15 },
+      { x: 3, y: 3, width: 15, height: 15 },
+      { x: 3, y: 82, width: 15, height: 15 },
+      { x: 18, y: 82, width: 64, height: 15 },
+    ],
+    blockers: [
+      { x: 18, y: 32, width: 18, height: 36 },
+      { x: 44, y: 30, width: 12, height: 38 },
+      { x: 64, y: 32, width: 18, height: 36 },
+      { x: 36, y: 48, width: 8, height: 20 },
+      { x: 56, y: 48, width: 8, height: 20 },
+      { x: 28, y: 18, width: 8, height: 10 },
+      { x: 46, y: 18, width: 8, height: 10 },
+      { x: 64, y: 18, width: 8, height: 10 },
+      { x: 0, y: 0, width: 6, height: 6 },
+      { x: 94, y: 0, width: 6, height: 6 },
+      { x: 0, y: 94, width: 6, height: 6 },
+      { x: 94, y: 94, width: 6, height: 6 },
+      { x: 90, y: 50, width: 10, height: 10 },
+      { x: 0, y: 35, width: 7, height: 12 },
+      { x: 36, y: 6, width: 10, height: 5 },
+      { x: 54, y: 6, width: 8, height: 5 },
+      { x: 30, y: 88, width: 8, height: 12 },
+    ],
+    arrows: [
+      ...OUTER_ARROWS,
+      // Top crossover main line: enter from right, sweep left, then drop to left edge.
+      { x: 72, y: 24, angle: -Math.PI / 2 },
+      { x: 50, y: 24, angle: -Math.PI / 2 },
+      { x: 24, y: 26, angle: Math.PI },
+    ],
+  },
+  {
+    // S-Curve Circuit — sweeping S through the interior with a narrow shortcut
+    trackSurface: [
+      { x: 5, y: 82, width: 90, height: 15 },
+      { x: 82, y: 5, width: 15, height: 77 },
+      { x: 5, y: 3, width: 77, height: 15 },
+      { x: 3, y: 18, width: 15, height: 64 },
+      { x: 82, y: 82, width: 15, height: 15 },
+      { x: 82, y: 3, width: 15, height: 15 },
+      { x: 3, y: 3, width: 15, height: 15 },
+      { x: 3, y: 82, width: 15, height: 15 },
+      { x: 18, y: 82, width: 64, height: 15 },
+      // S-curve roads
+      { x: 18, y: 18, width: 28, height: 14 },
+      { x: 18, y: 32, width: 16, height: 18 },
+      { x: 34, y: 38, width: 34, height: 14 },
+      { x: 66, y: 52, width: 16, height: 18 },
+      { x: 18, y: 66, width: 64, height: 12 },
+      // Narrow shortcut corridor (7 units wide)
+      { x: 46, y: 32, width: 7, height: 6 },
+      { x: 46, y: 52, width: 7, height: 14 },
+    ],
+    blockers: [
+      // Top-right block (forces left entry into S)
+      { x: 46, y: 18, width: 36, height: 20 },
+      // Bottom-left block (forces right exit from S)
+      { x: 18, y: 50, width: 28, height: 16 },
+      // Shortcut pinch walls (upper gap: x 46-53)
+      { x: 34, y: 32, width: 12, height: 6 },
+      { x: 53, y: 32, width: 13, height: 6 },
+      // Shortcut pinch walls (lower gap: x 46-53)
+      { x: 53, y: 52, width: 13, height: 14 },
+      { x: 34, y: 52, width: 12, height: 14 },
+      // Corner barriers
+      { x: 0, y: 0, width: 6, height: 6 },
+      { x: 94, y: 0, width: 6, height: 6 },
+      { x: 0, y: 94, width: 6, height: 6 },
+      { x: 94, y: 94, width: 6, height: 6 },
+      // Outer wall pinch points
+      { x: 0, y: 36, width: 7, height: 14 },
+      { x: 90, y: 55, width: 10, height: 10 },
+      { x: 40, y: 88, width: 10, height: 12 },
+    ],
+    arrows: [
+      ...OUTER_ARROWS,
+      // S-curve main line, anticlockwise from the top-right entry.
+      { x: 30, y: 25, angle: -Math.PI / 2 },
+      { x: 24, y: 42, angle: Math.PI },
+      { x: 50, y: 44, angle: Math.PI / 2 },
+      { x: 74, y: 60, angle: Math.PI },
+      { x: 50, y: 72, angle: -Math.PI / 2 },
+    ],
+  },
+  {
+    trackSurface: [
+      { x: 5, y: 82, width: 90, height: 15 },
+      { x: 82, y: 5, width: 15, height: 77 },
+      { x: 5, y: 3, width: 77, height: 15 },
+      { x: 3, y: 18, width: 15, height: 64 },
+      { x: 18, y: 18, width: 22, height: 16 },
+      { x: 40, y: 18, width: 20, height: 16 },
+      { x: 60, y: 18, width: 22, height: 16 },
+      { x: 22, y: 34, width: 14, height: 34 },
+      { x: 64, y: 34, width: 14, height: 34 },
+      { x: 36, y: 46, width: 28, height: 12 },
+      { x: 82, y: 82, width: 15, height: 15 },
+      { x: 82, y: 3, width: 15, height: 15 },
+      { x: 3, y: 3, width: 15, height: 15 },
+      { x: 3, y: 82, width: 15, height: 15 },
+      { x: 18, y: 82, width: 64, height: 15 },
+    ],
+    blockers: [
+      { x: 18, y: 34, width: 18, height: 34 },
+      { x: 64, y: 34, width: 18, height: 34 },
+      { x: 40, y: 28, width: 20, height: 12 },
+      { x: 40, y: 58, width: 20, height: 10 },
+      { x: 30, y: 18, width: 6, height: 10 },
+      { x: 64, y: 18, width: 6, height: 10 },
+      { x: 46, y: 46, width: 8, height: 12 },
+      { x: 0, y: 0, width: 6, height: 6 },
+      { x: 94, y: 0, width: 6, height: 6 },
+      { x: 0, y: 94, width: 6, height: 6 },
+      { x: 94, y: 94, width: 6, height: 6 },
+      { x: 0, y: 44, width: 8, height: 10 },
+      { x: 90, y: 24, width: 10, height: 12 },
+      { x: 90, y: 62, width: 10, height: 10 },
+      { x: 28, y: 88, width: 8, height: 12 },
+    ],
+    arrows: [
+      ...OUTER_ARROWS,
+      // Twin-tower main line: sweep left on top, drop through center-left, exit right.
+      { x: 50, y: 26, angle: -Math.PI / 2 },
+      { x: 28, y: 52, angle: Math.PI },
+      { x: 50, y: 52, angle: Math.PI / 2 },
+      { x: 72, y: 44, angle: 0 },
+    ],
+  },
+  {
+    // Double Hairpin — two staggered bars create tight hairpin turns, narrow shortcut through center
+    trackSurface: [
+      { x: 5, y: 82, width: 90, height: 15 },
+      { x: 82, y: 5, width: 15, height: 77 },
+      { x: 5, y: 3, width: 77, height: 15 },
+      { x: 3, y: 18, width: 15, height: 64 },
+      { x: 82, y: 82, width: 15, height: 15 },
+      { x: 82, y: 3, width: 15, height: 15 },
+      { x: 3, y: 3, width: 15, height: 15 },
+      { x: 3, y: 82, width: 15, height: 15 },
+      { x: 18, y: 82, width: 64, height: 15 },
+      // Upper section: road wraps around right-extending bar
+      { x: 18, y: 18, width: 64, height: 12 },
+      { x: 18, y: 30, width: 14, height: 14 },
+      { x: 68, y: 30, width: 14, height: 14 },
+      { x: 18, y: 40, width: 64, height: 12 },
+      // Lower section: road wraps around left-extending bar
+      { x: 18, y: 52, width: 14, height: 14 },
+      { x: 68, y: 52, width: 14, height: 14 },
+      { x: 18, y: 62, width: 64, height: 14 },
+      // Narrow shortcut through center (7 units wide at x:47-54)
+      { x: 47, y: 30, width: 7, height: 10 },
+      { x: 47, y: 52, width: 7, height: 10 },
+    ],
+    blockers: [
+      // Upper hairpin bar (extends from right, leaves gap on left for U-turn)
+      { x: 32, y: 30, width: 15, height: 10 },
+      { x: 54, y: 30, width: 14, height: 10 },
+      // Lower hairpin bar (extends from left, leaves gap on right for U-turn)
+      { x: 32, y: 52, width: 15, height: 10 },
+      { x: 54, y: 52, width: 14, height: 10 },
+      // Central island between hairpins
+      { x: 32, y: 40, width: 36, height: 12 },
+      // Corner barriers
+      { x: 0, y: 0, width: 6, height: 6 },
+      { x: 94, y: 0, width: 6, height: 6 },
+      { x: 0, y: 94, width: 6, height: 6 },
+      { x: 94, y: 94, width: 6, height: 6 },
+      // Outer wall pinch points
+      { x: 90, y: 40, width: 10, height: 12 },
+      { x: 0, y: 44, width: 7, height: 10 },
+      { x: 34, y: 88, width: 8, height: 12 },
+      { x: 60, y: 88, width: 8, height: 12 },
+    ],
+    arrows: [
+      ...OUTER_ARROWS,
+      // Double hairpin main line runs anticlockwise through both switchbacks.
+      { x: 50, y: 24, angle: -Math.PI / 2 },
+      { x: 24, y: 37, angle: Math.PI },
+      { x: 50, y: 46, angle: Math.PI / 2 },
+      { x: 75, y: 59, angle: Math.PI },
+      { x: 50, y: 69, angle: -Math.PI / 2 },
+    ],
+  },
+  {
+    trackSurface: [
+      { x: 5, y: 82, width: 90, height: 15 },
+      { x: 82, y: 5, width: 15, height: 77 },
+      { x: 5, y: 3, width: 77, height: 15 },
+      { x: 3, y: 18, width: 15, height: 64 },
+      { x: 18, y: 18, width: 18, height: 14 },
+      { x: 34, y: 18, width: 14, height: 22 },
+      { x: 48, y: 26, width: 16, height: 14 },
+      { x: 64, y: 18, width: 18, height: 14 },
+      { x: 20, y: 40, width: 14, height: 18 },
+      { x: 34, y: 48, width: 18, height: 12 },
+      { x: 52, y: 40, width: 14, height: 18 },
+      { x: 66, y: 48, width: 12, height: 14 },
+      { x: 30, y: 60, width: 14, height: 14 },
+      { x: 44, y: 66, width: 12, height: 8 },
+      { x: 56, y: 60, width: 14, height: 14 },
+      { x: 82, y: 82, width: 15, height: 15 },
+      { x: 82, y: 3, width: 15, height: 15 },
+      { x: 3, y: 3, width: 15, height: 15 },
+      { x: 3, y: 82, width: 15, height: 15 },
+      { x: 18, y: 82, width: 64, height: 15 },
+    ],
+    blockers: [
+      { x: 18, y: 32, width: 10, height: 42 },
+      { x: 72, y: 32, width: 10, height: 42 },
+      { x: 38, y: 18, width: 10, height: 12 },
+      { x: 52, y: 18, width: 10, height: 12 },
+      { x: 30, y: 42, width: 10, height: 10 },
+      { x: 60, y: 42, width: 10, height: 10 },
+      { x: 42, y: 54, width: 14, height: 10 },
+      { x: 34, y: 68, width: 10, height: 8 },
+      { x: 56, y: 68, width: 10, height: 8 },
+      { x: 0, y: 0, width: 6, height: 6 },
+      { x: 94, y: 0, width: 6, height: 6 },
+      { x: 0, y: 94, width: 6, height: 6 },
+      { x: 94, y: 94, width: 6, height: 6 },
+      { x: 90, y: 58, width: 10, height: 10 },
+      { x: 0, y: 48, width: 8, height: 12 },
+      { x: 26, y: 88, width: 8, height: 12 },
+      { x: 64, y: 88, width: 8, height: 12 },
+    ],
+    arrows: [
+      ...OUTER_ARROWS,
+      // Zig-zag main line, keeping the overall lap anticlockwise.
+      { x: 72, y: 24, angle: -Math.PI / 2 },
+      { x: 56, y: 34, angle: Math.PI },
+      { x: 40, y: 54, angle: -Math.PI / 2 },
+      { x: 56, y: 70, angle: Math.PI / 2 },
+      { x: 70, y: 56, angle: 0 },
+    ],
+  },
+];
+
+export const TRACK_PRESET_COUNT = TRACK_PRESETS.length;
+
 export class Map {
   public width: number = 600; // pixels
   public height: number = 600; // pixels
@@ -61,63 +343,39 @@ export class Map {
   private started = false;
   private remoteCars = new globalThis.Map<string, PlayerView>();
   private localPlayerName = "You";
-
-  // Track road surface segments (visual only, percentage coords)
-  private trackSurface: Blocker[] = [
-    // Bottom straight
-    { x: 5, y: 82, width: 90, height: 15 },
-    // Right side
-    { x: 82, y: 5, width: 15, height: 77 },
-    // Top straight
-    { x: 5, y: 3, width: 77, height: 15 },
-    // Left side
-    { x: 3, y: 18, width: 15, height: 64 },
-    // Bottom-right corner
-    { x: 82, y: 82, width: 15, height: 15 },
-    // Top-right corner
-    { x: 82, y: 3, width: 15, height: 15 },
-    // Top-left corner
-    { x: 3, y: 3, width: 15, height: 15 },
-    // Bottom-left corner
-    { x: 3, y: 82, width: 15, height: 15 },
-    // Pit lane extension (bottom)
-    { x: 18, y: 82, width: 64, height: 15 },
-  ];
-
-  // Collision blockers forming the track walls
-  public blockers: Blocker[] = [
-    // === INFIELD (inner walls) ===
-    // Main infield - L-shaped for interesting layout
-    { x: 18, y: 18, width: 30, height: 50 },  // left infield
-    { x: 48, y: 18, width: 34, height: 25 },   // top-right infield
-    { x: 62, y: 43, width: 20, height: 25 },   // right infield extension
-    { x: 48, y: 55, width: 14, height: 13 },   // small connecting block
-
-    // === OUTER WALLS (tighten corners, create features) ===
-    // Top-left corner block
-    { x: 0, y: 0, width: 6, height: 6 },
-    // Top-right corner block
-    { x: 94, y: 0, width: 6, height: 6 },
-    // Bottom-left corner block
-    { x: 0, y: 94, width: 6, height: 6 },
-    // Bottom-right corner block
-    { x: 94, y: 94, width: 6, height: 6 },
-
-    // === CHICANES ===
-    // Right-side chicane (outer wall pushes in)
-    { x: 90, y: 50, width: 10, height: 10 },
-    // Left-side chicane (outer wall pushes in)
-    { x: 0, y: 35, width: 7, height: 12 },
-    // Top chicane island
-    { x: 40, y: 6, width: 10, height: 5 },
-    // Bottom straight narrowing
-    { x: 30, y: 88, width: 8, height: 12 },
-  ];
+  private presetId = 0;
+  private trackSurface: Blocker[] = [];
+  private arrows: Arrow[] = [];
+  public blockers: Blocker[] = [];
 
   public car: Car = createStartPosition();
 
   constructor() {
     console.log("map initialized");
+    this.applyPreset(0);
+    this.reset();
+  }
+
+  private applyPreset(presetId: number) {
+    const preset = TRACK_PRESETS[presetId] ?? TRACK_PRESETS[0];
+
+    this.presetId = presetId;
+    this.trackSurface = preset.trackSurface.map((segment) => ({ ...segment }));
+    this.blockers = preset.blockers.map((blocker) => ({ ...blocker }));
+    this.arrows = preset.arrows.map((arrow) => ({ ...arrow }));
+  }
+
+  getPresetId() {
+    return this.presetId;
+  }
+
+  setPreset(presetId: number) {
+    const nextPresetId = Math.max(
+      0,
+      Math.min(presetId, TRACK_PRESETS.length - 1),
+    );
+
+    this.applyPreset(nextPresetId);
     this.reset();
   }
 
@@ -174,6 +432,26 @@ export class Map {
       }
     }
 
+    // Draw direction arrows on road
+    this.arrows.forEach((arrow) => {
+      const px = (arrow.x / 100) * this.width;
+      const py = (arrow.y / 100) * this.height;
+      const size = (2.5 / 100) * this.width;
+
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(arrow.angle);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.18)";
+      ctx.beginPath();
+      ctx.moveTo(0, -size);
+      ctx.lineTo(size * 0.7, size * 0.6);
+      ctx.lineTo(0, size * 0.25);
+      ctx.lineTo(-size * 0.7, size * 0.6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    });
+
     // Draw dashed center line on the bottom straight
     ctx.setLineDash([8, 8]);
     ctx.strokeStyle = "#fff";
@@ -194,7 +472,12 @@ export class Map {
       const bh = (blocker.height / 100) * this.height;
 
       // Infield blocks get grass + gravel look
-      if (blocker.x >= 18 && blocker.x < 82 && blocker.y >= 18 && blocker.y < 82) {
+      if (
+        blocker.x >= 18 &&
+        blocker.x < 82 &&
+        blocker.y >= 18 &&
+        blocker.y < 82
+      ) {
         // Grass infield
         ctx.fillStyle = "#1a6e1a";
         ctx.fillRect(bx, by, bw, bh);
@@ -212,7 +495,12 @@ export class Map {
           ctx.fillStyle = "#e22";
           ctx.fillRect(bx + sx, by, Math.min(stripeW, bw - sx), 3);
           ctx.fillStyle = "#fff";
-          ctx.fillRect(bx + sx + stripeW, by, Math.min(stripeW, bw - sx - stripeW), 3);
+          ctx.fillRect(
+            bx + sx + stripeW,
+            by,
+            Math.min(stripeW, bw - sx - stripeW),
+            3,
+          );
         }
       }
     });
@@ -345,8 +633,8 @@ export class Map {
     const speed = this.braking
       ? 0
       : this.boosting
-      ? this.car.speed * BOOST_MULTIPLIER
-      : this.car.speed;
+        ? this.car.speed * BOOST_MULTIPLIER
+        : this.car.speed;
     const distance = (speed / FPS) * deltaFrames;
     const turnDirection =
       Number(this.steering.right) - Number(this.steering.left);
@@ -522,6 +810,5 @@ export class Map {
       ctx.textBaseline = "middle";
       ctx.fillText("Paused", this.width / 2, this.height / 2);
     }
-
   }
 }

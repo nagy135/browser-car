@@ -48,6 +48,7 @@ const players = new Map<string, PlayerState>();
 const chatHistory: ChatMessage[] = [];
 let matchPreparing = false;
 let nextChatMessageId = 1;
+let activeMapPreset = 0;
 
 function createSpawnPosition(index: number): CarState {
   const row = index % 2;
@@ -160,6 +161,7 @@ io.on("connection", (socket) => {
     id: socket.id,
     players: serializePlayers(),
     chatHistory,
+    mapPreset: activeMapPreset,
   });
 
   io.emit("players", serializePlayers());
@@ -216,6 +218,15 @@ io.on("connection", (socket) => {
 
     existingPlayer.name = sanitizePlayerName(name) ?? createDefaultName(socket.id);
     io.emit("players", serializePlayers());
+  });
+
+  socket.on("map:preset", (presetId: number) => {
+    if (!Number.isInteger(presetId) || presetId < 0 || presetId > 4) {
+      return;
+    }
+
+    activeMapPreset = presetId;
+    io.emit("map:preset", activeMapPreset);
   });
 
   socket.on("chat:message", (text: string) => {

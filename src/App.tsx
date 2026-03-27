@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { io } from "socket.io-client";
-import { Map, type CarState, type PlayerView } from "./map";
+import {
+  Map,
+  TRACK_PRESET_COUNT,
+  type CarState,
+  type PlayerView,
+} from "./map";
 
 const map = new Map();
 const PLAYER_NAME_STORAGE_KEY = "browser-car-player-name";
@@ -15,6 +20,7 @@ type WelcomePayload = {
   id: string;
   players: NetworkPlayer[];
   chatHistory: ChatMessage[];
+  mapPreset: number;
 };
 
 type MatchPayload = {
@@ -76,6 +82,7 @@ function App() {
   const [playerName, setPlayerName] = useState(getInitialPlayerName);
   const [nameDraft, setNameDraft] = useState(getInitialPlayerName);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeMapPreset, setActiveMapPreset] = useState(map.getPresetId());
   const socketUrl = import.meta.env.VITE_SOCKET_URL ?? window.location.origin;
 
   useEffect(() => {
@@ -266,6 +273,8 @@ function App() {
       setConnectionLabel(`connected as ${payload.id.slice(0, 6)}`);
       setPlayerCount(payload.players.length);
       setChatMessages(payload.chatHistory);
+      map.setPreset(payload.mapPreset);
+      setActiveMapPreset(payload.mapPreset);
 
       const localPlayer = payload.players.find(
         (player) => player.id === payload.id,
@@ -278,6 +287,12 @@ function App() {
 
       splitPlayers(payload.players, localPlayerId);
 
+      beginIdleState();
+    });
+
+    socket.on("map:preset", (presetId: number) => {
+      map.setPreset(presetId);
+      setActiveMapPreset(presetId);
       beginIdleState();
     });
 
@@ -489,6 +504,12 @@ function App() {
     chatInputRef.current?.focus();
   };
 
+  const handleMapPresetSelect = (presetId: number) => {
+    map.setPreset(presetId);
+    setActiveMapPreset(presetId);
+    socketRef.current?.emit("map:preset", presetId);
+  };
+
   return (
     <div
       style={{
@@ -499,6 +520,50 @@ function App() {
         position: "relative",
       }}
     >
+      <div
+        style={{
+          position: "absolute",
+          top: 16,
+          left: "50%",
+          transform: "translateX(-50%)",
+          display: "flex",
+          gap: 8,
+          padding: 8,
+          borderRadius: 999,
+          background: "rgba(0, 0, 0, 0.68)",
+          border: "1px solid rgba(255, 255, 255, 0.12)",
+        }}
+      >
+        {Array.from({ length: TRACK_PRESET_COUNT }, (_, index) => (
+          <button
+            key={index}
+            type="button"
+            onClick={() => handleMapPresetSelect(index)}
+            style={{
+              width: 34,
+              height: 34,
+              display: "grid",
+              placeItems: "center",
+              padding: 0,
+              borderRadius: 999,
+              border:
+                activeMapPreset === index
+                  ? "1px solid rgba(255, 255, 255, 0.7)"
+                  : "1px solid rgba(255, 255, 255, 0.18)",
+              background:
+                activeMapPreset === index
+                  ? "rgba(255, 255, 255, 0.2)"
+                  : "rgba(255, 255, 255, 0.08)",
+              color: "#fff",
+              fontFamily: "monospace",
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            {index + 1}
+          </button>
+        ))}
+      </div>
       <div
         style={{
           position: "absolute",
