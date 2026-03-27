@@ -483,8 +483,8 @@ export class Map {
         ctx.fillRect(bx, by, bw, bh);
         // Gravel border (curb effect)
         ctx.strokeStyle = "#c44";
-        ctx.lineWidth = 3;
-        ctx.strokeRect(bx + 1.5, by + 1.5, bw - 3, bh - 3);
+        ctx.lineWidth = 12;
+        ctx.strokeRect(bx + 6, by + 6, bw - 12, bh - 12);
       } else {
         // Outer barriers - concrete wall look
         ctx.fillStyle = "#888";
